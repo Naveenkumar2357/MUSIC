@@ -1038,6 +1038,23 @@ void Cell_info::get_maximum_energy_density(
 }
 
 //! This function computes OAM area density at a give proper time
+//! binary format
+//
+//   Header :
+//   header[0] = tau  
+//   header[1] = deta  
+//   header[2] = dx    
+//   header[3] = dy    
+//   header[4] = neta  
+//   header[5] = nx    
+//   header[6] = ny
+//  
+//  After the 7-float header, each transverse grid point stores:
+//   Lx_xy  [hbar fm^-2] Ly_xy  [hbar fm^-2] Lz_xy  [hbar fm^-2] Ltx_xy [hbar fm^-2] Lty_xy [hbar fm^-2] Ltz_xy [hbar fm^-2]
+//
+//   Total number of floats in file:
+//   7 + nx * ny * 6//
+
 void Cell_info::compute_Lmunu(
     Fields &arena, Fields &arena_prev, const double tau) {
     const double deta = DATA.delta_eta;
@@ -1052,25 +1069,24 @@ void Cell_info::compute_Lmunu(
                << std::setprecision(3) << tau;
     ostringstream filename;
     filename << "Lmunu_angular_momentum_tau_" << tau_suffix.str() << ".dat";
+    string out_open_mode;
+    FILE *output_file;
 
-    ofstream output_file;
-    output_file.open(filename.str().c_str(), std::ofstream::out);
-    output_file << "# Tau = " << tau << "\n";
-    output_file << "# deta = " << deta << "\n";
-    output_file << "# dx = " << dx << "\n";
-    output_file << "# dy = " << dy << "\n";
-    output_file << "# neta = " << neta << "\n";
-    output_file << "# nx = " << nx << "\n";
-    output_file << "# ny = " << ny << "\n";
+    out_open_mode = "wb";
+    output_file = fopen(filename.str().c_str(), out_open_mode.c_str());
+    float header[] = {
+            static_cast<float>(tau),
+            static_cast<float>(deta),
+            static_cast<float>(dx),
+            static_cast<float>(dy),
+            static_cast<float>(neta),
+            static_cast<float>(nx),
+            static_cast<float>(ny)
+    };
 
-    output_file
-        << "Lx_xy[hbar fm^-2]   Ly_xy[hbar fm^-2]   Lz_xy[hbar fm^-2]   "
-        << "L^{tx}_xy[hbar fm^-2]   L^{ty}_xy[hbar fm^-2]   L^{tz}_xy[hbar "
-           "fm^-2]"
-        << std::endl;
-
-    std::vector<std::vector<std::vector<double>>> Lx(
-        neta,
+    fwrite(header, sizeof(float), 7, output_file);
+   
+    std::vector<std::vector<std::vector<double>>> Lx(neta,
         std::vector<std::vector<double>>(nx, std::vector<double>(ny, 0.0)));
     std::vector<std::vector<std::vector<double>>> Ly = Lx;
     std::vector<std::vector<std::vector<double>>> Lz = Lx;
@@ -1157,13 +1173,20 @@ void Cell_info::compute_Lmunu(
                 Ltz_xy[ix][iy] += Ltz[ieta][ix][iy] * dz;
             }
 
-            output_file << std::scientific << std::setprecision(6)
-                        << Lx_xy[ix][iy] << " " << Ly_xy[ix][iy] << " "
-                        << Lz_xy[ix][iy] << " " << Ltx_xy[ix][iy] << " "
-                        << Lty_xy[ix][iy] << " " << Ltz_xy[ix][iy] << std::endl;
-        }
+           float Lmunu_area_density[] = {
+                static_cast<float>(Lx_xy[ix][iy]),
+                static_cast<float>(Ly_xy[ix][iy]),
+                static_cast<float>(Lz_xy[ix][iy]),
+                static_cast<float>(Ltx_xy[ix][iy]),
+                static_cast<float>(Lty_xy[ix][iy]),
+                static_cast<float>(Ltz_xy[ix][iy])
+           };
+
+           fwrite(Lmunu_area_density, sizeof(float), 6, output_file);
+	}
     }
-    output_file.close();
+
+    fclose(output_file);
 }
 
 //! This function computes global angular momentum at a give proper time
@@ -1400,7 +1423,7 @@ void Cell_info::check_conservation_law(
     music_message << "net longitudinal momentum Pz = " << T_tau_z << " GeV";
     music_message.flush("info");
     music_message << "net baryon number N_B = " << N_B;
-    if (N_B > 0. && N_B < 500.) {
+    if (N_B >= 0. && N_B < 500.) {
         music_message.flush("info");
     } else {
         music_message.flush("error");

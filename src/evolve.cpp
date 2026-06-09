@@ -165,6 +165,7 @@ int Evolve::EvolveIt(
         // }
 
         int evoFileStatus = 0;
+        const int it_Nskipped_step_after_sourcing = ((it_source_max + Nskip_timestep - 1) / Nskip_timestep) * Nskip_timestep;
         if (it % Nskip_timestep == 0) {
             if (DATA.outputEvolutionData == 1) {
                 grid_info.OutputEvolutionDataXYEta(*fpCurr, tau);
@@ -190,6 +191,14 @@ int Evolve::EvolveIt(
             if (DATA.output_outofequilibriumsize == 1) {
                 grid_info.OutputEvolution_Knudsen_Reynoldsnumbers(*fpCurr, tau);
             }
+
+	  
+            if (DATA.output_OAM_density_Evolution == 2
+                 || (DATA.output_OAM_density_Evolution == 1
+                 && it == it_Nskipped_step_after_sourcing)) {
+                 grid_info.compute_Lmunu(*fpCurr, *fpPrev, tau);
+
+             }
         }
         if (evoFileStatus == -1) {
             DATA.reRunHydro = true;
@@ -257,12 +266,6 @@ int Evolve::EvolveIt(
                         *fpCurr, *fpPrev, tau, -DATA.eta_size / 2.,
                         DATA.eta_size / 2.);
                 }
-            }
-
-            if (DATA.output_OAM_density_Evolution == 2
-                || (DATA.output_OAM_density_Evolution == 1
-                    && it == it_source_max)) {
-                grid_info.compute_Lmunu(*fpCurr, *fpPrev, tau);
             }
 
             double emax_loc = 0.;
